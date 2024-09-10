@@ -1,0 +1,10 @@
+requests 
+beautifulsoup4
+datasets
+groq
+ratelimit
+transformers
+torch
+bitsandbytes
+numpy<2.0
+accelerate
