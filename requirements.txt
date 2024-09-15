@@ -8,3 +8,5 @@ torch
 bitsandbytes
 numpy<2.0
 accelerate
+einops
+nltk

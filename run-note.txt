@@ -1,0 +1,5 @@
+conda create --name finetunellm python=3.10 -y
+conda activate finetunellm
+
+pip install --upgrade pip
+
