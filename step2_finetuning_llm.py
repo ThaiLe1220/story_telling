@@ -2,66 +2,123 @@ import json
 import transformers
 import torch.cuda
 import torch
-import logging
-import random
-import numpy as np
+
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
     BitsAndBytesConfig,
-    get_scheduler,
 )
+
 from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+import json
+import transformers
+import torch.cuda
+import torch
+
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    BitsAndBytesConfig,
 )
-logger = logging.getLogger(__name__)
+
+from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model
+
+# Model and Tokenizer Setup
+MODEL_HF_NAME = "meta-llama/Meta-Llama-3.1-8B"
+TOKENIZER = AutoTokenizer.from_pretrained(MODEL_HF_NAME)
+TOKENIZER.pad_token = TOKENIZER.eos_token
+
+# Add special tokens to the tokenizer
+special_tokens = ["### Instruction:", "### Response:"]
+TOKENIZER.add_tokens(special_tokens)
+print(f"Added special tokens: {special_tokens}")
+
+# Set the maximum sequence length
+max_sequence_length = 4069
+min_sequence_length = 256
 
 
-# Set seed for reproducibility
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+# Data Processing Function
+def process_item(item):
+    description = item.get("summary", "").strip()
+    story = item.get("story", "").strip()
+
+    if not description or not story:
+        print(f"Missing 'description' or 'story' in item: {item}")
+        return None  # Skip items with missing data
+
+    # Create the input text using the new format
+    input_text = (
+        "### Instruction:\n"
+        f"Write a fairy tale about {description.lower()}\n\n"
+        "### Response:\n"
+        f"{story}\n"
+    )
+
+    # Tokenize the input_text to get its length
+    tokenized_input = TOKENIZER(
+        input_text,
+        return_length=True,
+        add_special_tokens=True,
+    )
+
+    total_length = tokenized_input["length"][0]
+
+    if total_length > max_sequence_length:
+        print(
+            f"Skipping item because total length {total_length} exceeds {max_sequence_length} tokens."
+        )
+        return None  # Skip items that are too long
+    elif total_length < min_sequence_length:
+        print(
+            f"Skipping item because total length {total_length} is smaller than {min_sequence_length} tokens."
+        )
+        return None  # Skip items that are too short
+
+    print(
+        f"Processing item with description '{description}' of total length {total_length} tokens."
+    )
+
+    # Tokenize again with truncation and padding
+    tokenized_input = TOKENIZER(
+        input_text,
+        truncation=True,
+        max_length=max_sequence_length,
+        padding="max_length",
+        add_special_tokens=True,
+    )
+
+    return {
+        "input_text": input_text,
+        "input_ids": tokenized_input["input_ids"],
+        "attention_mask": tokenized_input["attention_mask"],
+    }
 
 
-set_seed(42)
-
-logger.info("Loading data from JSONL file...")
-data = []
-with open("dataset/grimm_stories_dataset.jsonl", "r", encoding="utf-8") as file:
+# Load the data from the JSONL file
+RAW_DATA = []
+with open("dataset/summarized_stories_cleaned.jsonl", "r", encoding="utf-8") as file:
     for line_number, line in enumerate(file, 1):
         line = line.strip()
         if not line:
             continue
         try:
-            data.append(json.loads(line))
+            RAW_DATA.append(json.loads(line))
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON on line {line_number}: {e}")
             print(f"Problematic line: {line}")
 
-logger.info(f"Successfully loaded {len(data)} items from the JSONL file.")
+print(f"[Workflow] Successfully loaded {len(RAW_DATA)} items from the JSONL file.")
 
-logger.info("Initializing model and tokenizer...")
-model_id = "meta-llama/Meta-Llama-3.1-8B"
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-tokenizer.pad_token = tokenizer.eos_token
+# Process the data
+TRAIN_DATA = []
+for item in RAW_DATA:
+    processed_item = process_item(item)
+    if processed_item:
+        TRAIN_DATA.append(processed_item)
 
-logger.info(f"Tokenizer initialized. Vocabulary size: {len(tokenizer)}")
-
-
-def process_item(item):
-    input_text = (
-        "###Human: " + item["title"] + "###Assisstant: " + item["story"] + " ### "
-    )
-    return {
-        "input_text": input_text,
-        **tokenizer(input_text, truncation=True, max_length=512),
-    }
+print(f"[Workflow] Successfully processed {len(TRAIN_DATA)} items for training.")
 
 
 bnb_config = BitsAndBytesConfig(
@@ -71,30 +128,23 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_compute_dtype=torch.bfloat16,
 )
 
-logger.info("Loading model...")
 model = AutoModelForCausalLM.from_pretrained(
-    model_id,
+    MODEL_HF_NAME,
     quantization_config=bnb_config,
     device_map="auto",
     trust_remote_code=True,
 )
 
-logger.info("Enabling gradient checkpointing...")
 model.gradient_checkpointing_enable()
-logger.info("Preparing model for kbit training...")
 model = prepare_model_for_kbit_training(model)
 
-config = LoraConfig(
+peft_config = LoraConfig(
     r=8, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM"
 )
-model = get_peft_model(model, config)
-logger.info(f"LoRA config created: {config}")
+model = get_peft_model(model, peft_config)
 
-data = list(map(process_item, data))
-logger.info(f"Processed {len(data)} items.")
 
-logger.info("Initializing trainer...")
-tokenizer.pad_token = tokenizer.eos_token
+TOKENIZER.pad_token = TOKENIZER.eos_token
 training_args = transformers.TrainingArguments(
     per_device_train_batch_size=6,  # was 10
     gradient_accumulation_steps=4,  # was 4
@@ -110,46 +160,29 @@ training_args = transformers.TrainingArguments(
 torch.cuda.empty_cache()
 trainer = transformers.Trainer(
     model=model,
-    train_dataset=data,
+    train_dataset=TRAIN_DATA,
     args=training_args,
-    data_collator=transformers.DataCollatorForLanguageModeling(tokenizer, mlm=False),
+    data_collator=transformers.DataCollatorForLanguageModeling(TOKENIZER, mlm=False),
 )
 model.config.use_cache = False
 trainer.train()
 
 torch.cuda.empty_cache()
 
-logger.info("Starting training...")
 try:
     trainer.train()
-    logger.info("Training completed successfully.")
+    print("Training completed successfully.")
 except Exception as e:
-    logger.error(f"An error occurred during training: {str(e)}")
+    print(f"An error occurred during training: {str(e)}")
 
-logger.info("Saving model...")
 try:
     trainer.save_model("adapter-model")
-    logger.info("Model saved successfully to 'adapter-model' directory.")
+    print("Model saved successfully to 'adapter-model' directory.")
 except Exception as e:
-    logger.error(f"An error occurred while saving the model: {str(e)}")
+    print(f"An error occurred while saving the model: {str(e)}")
 
-logger.info("Evaluating model...")
-try:
-    results = trainer.evaluate()
-    logger.info(f"Evaluation results: {results}")
-except Exception as e:
-    logger.error(f"An error occurred during evaluation: {str(e)}")
 
-logger.info("Script execution completed.")
-
-# Add some performance metrics
-if torch.cuda.is_available():
-    logger.info(f"GPU Memory allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
-    logger.info(f"GPU Memory cached: {torch.cuda.memory_reserved()/1e9:.2f} GB")
-
-logger.info(
-    f"Total parameters in the model: {sum(p.numel() for p in model.parameters())}"
-)
-logger.info(
+print(f"Total parameters in the model: {sum(p.numel() for p in model.parameters())}")
+print(
     f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
 )
