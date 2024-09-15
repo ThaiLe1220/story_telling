@@ -1,6 +1,6 @@
 dataset
 grimm_stories
 
-outputs
-merged_*/
-adapter-*/
+outputs*/
+merged*/
+adapter*/
