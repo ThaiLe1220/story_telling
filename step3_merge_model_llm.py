@@ -24,7 +24,7 @@ TOKENIZER.add_special_tokens(special_tokens)
 BASE_MODEL.resize_token_embeddings(len(TOKENIZER))
 
 # Load the fine-tuned adapter and apply it to the base model
-model = PeftModel.from_pretrained(BASE_MODEL, "adapter-model").to("cuda")
+model = PeftModel.from_pretrained(BASE_MODEL, "adapter-model-new").to("cuda")
 
 # Merge the adapter weights with the base model
 model = model.merge_and_unload()

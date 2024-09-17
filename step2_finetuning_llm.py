@@ -11,7 +11,7 @@ from transformers import (
 
 from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model
 
-# Model and Tokenizer Setup
+# 1. Setup and Initialization
 MODEL_HF_NAME = "meta-llama/Meta-Llama-3.1-8B"
 TOKENIZER = AutoTokenizer.from_pretrained(MODEL_HF_NAME)
 TOKENIZER.pad_token = TOKENIZER.eos_token
@@ -26,7 +26,7 @@ max_sequence_length = 1024
 min_sequence_length = 256
 
 
-# Data Processing Function
+# 2. Data Loading and Processing
 def process_item(item):
     input_text = (
         "###Human: Write a fairy tale about "
@@ -89,7 +89,7 @@ print(f"[Workflow] Successfully loaded {len(RAW_DATA)} items from the JSONL file
 TRAIN_DATA = [item for item in map(process_item, RAW_DATA) if item is not None]
 print(f"[Workflow] Successfully processed {len(TRAIN_DATA)} items for training.")
 
-
+# 3. Model Configuration
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_use_double_quant=True,
@@ -113,8 +113,9 @@ peft_config = LoraConfig(
 model = get_peft_model(model, peft_config)
 
 TOKENIZER.pad_token = TOKENIZER.eos_token
-
 model.resize_token_embeddings(len(TOKENIZER))
+
+# 4. Training Setup
 training_args = transformers.TrainingArguments(
     per_device_train_batch_size=4,  # Use a batch size that fits your GPU memory
     gradient_accumulation_steps=4,  # Accumulate gradients to simulate larger batch size
@@ -135,6 +136,7 @@ trainer = transformers.Trainer(
     data_collator=transformers.DataCollatorForLanguageModeling(TOKENIZER, mlm=False),
 )
 
+# 5. Model Training
 model.config.use_cache = False
 trainer.train()
 print("Training completed successfully.")
