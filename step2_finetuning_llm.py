@@ -11,89 +11,63 @@ from transformers import (
 
 from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model
 
-import json
-import transformers
-import torch.cuda
-import torch
-
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    BitsAndBytesConfig,
-)
-
-from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model
-
 # Model and Tokenizer Setup
 MODEL_HF_NAME = "meta-llama/Meta-Llama-3.1-8B"
 TOKENIZER = AutoTokenizer.from_pretrained(MODEL_HF_NAME)
 TOKENIZER.pad_token = TOKENIZER.eos_token
 
 # Add special tokens to the tokenizer
-special_tokens = ["### Instruction:", "### Response:"]
-TOKENIZER.add_tokens(special_tokens)
-print(f"Added special tokens: {special_tokens}")
+special_tokens = {"additional_special_tokens": ["###Human:", "###Assistant:"]}
+TOKENIZER.add_special_tokens(special_tokens)
+
 
 # Set the maximum sequence length
-max_sequence_length = 4069
+max_sequence_length = 1024
 min_sequence_length = 256
 
 
 # Data Processing Function
 def process_item(item):
-    description = item.get("summary", "").strip()
-    story = item.get("story", "").strip()
-
-    if not description or not story:
-        print(f"Missing 'description' or 'story' in item: {item}")
-        return None  # Skip items with missing data
-
-    # Create the input text using the new format
     input_text = (
-        "### Instruction:\n"
-        f"Write a fairy tale about {description.lower()}\n\n"
-        "### Response:\n"
-        f"{story}\n"
+        "###Human: Write a fairy tale about "
+        + item["summary"]
+        + "\n###Assistant: "
+        + item["story"]
+        + " ###"
     )
+    try:
+        # Tokenize the input_text to get its length
+        tokenized_input = TOKENIZER(
+            input_text,
+            return_length=True,
+            add_special_tokens=True,
+        )
 
-    # Tokenize the input_text to get its length
-    tokenized_input = TOKENIZER(
-        input_text,
-        return_length=True,
-        add_special_tokens=True,
-    )
-
-    total_length = tokenized_input["length"][0]
+        total_length = tokenized_input["length"][0]
+    except Exception as ex:
+        print(f"Tokenization error: {ex}")
+        return None
 
     if total_length > max_sequence_length:
-        print(
-            f"Skipping item because total length {total_length} exceeds {max_sequence_length} tokens."
-        )
+        # print(
+        #     f"Skipping item because total length {total_length} exceeds {max_sequence_length} tokens."
+        # )
         return None  # Skip items that are too long
     elif total_length < min_sequence_length:
-        print(
-            f"Skipping item because total length {total_length} is smaller than {min_sequence_length} tokens."
-        )
+        # print(
+        #     f"Skipping item because total length {total_length} is smaller than {min_sequence_length} tokens."
+        # )
         return None  # Skip items that are too short
-
-    print(
-        f"Processing item with description '{description}' of total length {total_length} tokens."
-    )
-
-    # Tokenize again with truncation and padding
-    tokenized_input = TOKENIZER(
-        input_text,
-        truncation=True,
-        max_length=max_sequence_length,
-        padding="max_length",
-        add_special_tokens=True,
-    )
-
-    return {
-        "input_text": input_text,
-        "input_ids": tokenized_input["input_ids"],
-        "attention_mask": tokenized_input["attention_mask"],
-    }
+    else:
+        return {
+            "input_text": input_text,
+            **TOKENIZER(
+                input_text,
+                truncation=True,
+                max_length=max_sequence_length,
+                padding="max_length",
+            ),
+        }
 
 
 # Load the data from the JSONL file
@@ -112,12 +86,7 @@ with open("dataset/summarized_stories_cleaned.jsonl", "r", encoding="utf-8") as 
 print(f"[Workflow] Successfully loaded {len(RAW_DATA)} items from the JSONL file.")
 
 # Process the data
-TRAIN_DATA = []
-for item in RAW_DATA:
-    processed_item = process_item(item)
-    if processed_item:
-        TRAIN_DATA.append(processed_item)
-
+TRAIN_DATA = [item for item in map(process_item, RAW_DATA) if item is not None]
 print(f"[Workflow] Successfully processed {len(TRAIN_DATA)} items for training.")
 
 
@@ -139,20 +108,21 @@ model.gradient_checkpointing_enable()
 model = prepare_model_for_kbit_training(model)
 
 peft_config = LoraConfig(
-    r=8, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM"
+    r=16, lora_alpha=32, lora_dropout=0.1, bias="none", task_type="CAUSAL_LM"
 )
 model = get_peft_model(model, peft_config)
 
-
 TOKENIZER.pad_token = TOKENIZER.eos_token
+
+model.resize_token_embeddings(len(TOKENIZER))
 training_args = transformers.TrainingArguments(
-    per_device_train_batch_size=6,  # was 10
-    gradient_accumulation_steps=4,  # was 4
-    warmup_steps=2,
+    per_device_train_batch_size=4,  # Use a batch size that fits your GPU memory
+    gradient_accumulation_steps=4,  # Accumulate gradients to simulate larger batch size
+    warmup_steps=5,
     max_steps=500,
-    learning_rate=1e-4,
-    fp16=False,
-    logging_steps=1,
+    learning_rate=1e-5,
+    fp16=True,
+    logging_steps=25,
     output_dir="outputs",
     optim="paged_adamw_8bit",
 )
@@ -164,23 +134,17 @@ trainer = transformers.Trainer(
     args=training_args,
     data_collator=transformers.DataCollatorForLanguageModeling(TOKENIZER, mlm=False),
 )
+
 model.config.use_cache = False
 trainer.train()
+print("Training completed successfully.")
 
 torch.cuda.empty_cache()
 
-try:
-    trainer.train()
-    print("Training completed successfully.")
-except Exception as e:
-    print(f"An error occurred during training: {str(e)}")
-
-try:
-    trainer.save_model("adapter-model")
-    print("Model saved successfully to 'adapter-model' directory.")
-except Exception as e:
-    print(f"An error occurred while saving the model: {str(e)}")
-
+# Save model and tokenizer
+trainer.save_model("adapter-model-new")
+TOKENIZER.save_pretrained("adapter-model-new")  # Save the tokenizer with the model
+print("Model and tokenizer saved successfully to 'adapter-model-new' directory.")
 
 print(f"Total parameters in the model: {sum(p.numel() for p in model.parameters())}")
 print(

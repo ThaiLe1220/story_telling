@@ -4,7 +4,7 @@ datasets
 groq
 ratelimit
 transformers
-torch
+torch 
 bitsandbytes
 numpy<2.0
 accelerate
