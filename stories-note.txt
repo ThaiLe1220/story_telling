@@ -1,0 +1,11 @@
+Write a fairy tale in the style of the Brothers Grimm about a clever shoemaker who makes a deal with a mischievous forest spirit. Only output the story content, don't output anything else. 
+
+Write a fairy tale in the style of the Brothers Grimm about a forgotten princess trapped in a tower of ice. Only output the story content, don't output anything else. 
+
+Write a fairy tale in the style of the Brothers Grimm about a brave woodcutter who befriends a golden bear. Only output the story content, don't output anything else.
+
+Write a fairy tale in the style of the Brothers Grimm about a magic soup pot that never runs empty. Only output the story content, don't output anything else. 
+
+Write a fairy tale in the style of the Brothers Grimm about three sisters who set out to break a curse on their village. Only output the story content, don't output anything else.
+
+
