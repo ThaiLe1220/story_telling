@@ -4,6 +4,7 @@ Prompt 3: Write a fairy tale in the style of the Brothers Grimm about a brave wo
 Prompt 4: Write a fairy tale in the style of the Brothers Grimm about a magic soup pot that never runs empty
 Prompt 5: Write a fairy tale in the style of the Brothers Grimm about three sisters who set out to break a curse on their village
 
+PROMPT PLUS: Write a fairy tale in the style of the Brothers Grimm about a girl who finds a mirror that reveals people's hidden intentions
 --------------------------------------------------
 Analyzing directory: stories/ChatGPT4o
 Analysis for stories/ChatGPT4o:

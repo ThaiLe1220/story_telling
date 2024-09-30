@@ -9,3 +9,4 @@ Write a fairy tale in the style of the Brothers Grimm about a magic soup pot tha
 Write a fairy tale in the style of the Brothers Grimm about three sisters who set out to break a curse on their village. Only output the story content, don't output anything else.
 
 
+Write a fairy tale in the style of the Brothers Grimm about a girl who finds a mirror that reveals people's hidden intentions

@@ -43,11 +43,11 @@ def generate_fairy_tale_merged(story, max_new_tokens=1024):
             pad_token_id=tokenizer.eos_token_id,  # Use tokenizer's eos_token_id
             do_sample=True,
             max_new_tokens=max_new_tokens,  # Generate up to max_new_tokens tokens
-            top_p=0.92,
-            top_k=50,
-            temperature=0.8,
-            no_repeat_ngram_size=3,
-            repetition_penalty=1.2,
+            top_p=0.95,
+            top_k=45,
+            temperature=0.7,
+            no_repeat_ngram_size=2,
+            repetition_penalty=1,
             eos_token_id=tokenizer.eos_token_id,
         )
 
@@ -72,7 +72,7 @@ def generate_fairy_tale_merged(story, max_new_tokens=1024):
 
 
 # Example usage
-story = "three sisters who set out to break a curse on their village"
+story = "a girl who finds a mirror that reveals people's hidden intentions"
 merged_output = generate_fairy_tale_merged(story, max_new_tokens=1024)
 
 # a clever shoemaker who makes a deal with a mischievous forest spirit
@@ -89,47 +89,47 @@ merged_output = generate_fairy_tale_merged(story, max_new_tokens=1024)
 # a clever shoemaker who makes a deal with a mischievous forest spirit
 
 
-# def generate_fairy_tale_original(story, max_tokens=1024):
-#     MODEL_HF_NAME = "meta-llama/Meta-Llama-3.1-8B"
+# MODEL_HF_NAME = "meta-llama/Meta-Llama-3.1-8B"
 
-#     bnb_config = BitsAndBytesConfig(
-#         load_in_4bit=True,
-#         bnb_4bit_use_double_quant=True,
-#         bnb_4bit_quant_type="nf4",
-#         bnb_4bit_compute_dtype=torch.bfloat16,
-#     )
+# bnb_config = BitsAndBytesConfig(
+#     load_in_4bit=True,
+#     bnb_4bit_use_double_quant=True,
+#     bnb_4bit_quant_type="nf4",
+#     bnb_4bit_compute_dtype=torch.bfloat16,
+# )
 
-#     tokenizer = AutoTokenizer.from_pretrained(MODEL_HF_NAME)
-#     model = AutoModelForCausalLM.from_pretrained(
-#         MODEL_HF_NAME,
-#         quantization_config=bnb_config,
-#         device_map="auto",
-#         trust_remote_code=True,
-#     )
+# llama_tokenizer = AutoTokenizer.from_pretrained(MODEL_HF_NAME)
+# llama_model = AutoModelForCausalLM.from_pretrained(
+#     MODEL_HF_NAME,
+#     quantization_config=bnb_config,
+#     device_map="auto",
+#     trust_remote_code=True,
+# )
 
-#     input_ids = tokenizer.encode(story, return_tensors="pt").to("cuda:0")
 
-#     # Calculate the maximum length for generation
-#     max_length = input_ids.shape[1] + max_tokens
+# def generate_fairy_tale_original(story, max_new_tokens=1024):
 
-#     sample_outputs = model.generate(
+#     input_ids = llama_tokenizer.encode(story, return_tensors="pt").to("cuda:0")
+
+#     sample_outputs = llama_model.generate(
 #         input_ids,
 #         pad_token_id=50256,
 #         do_sample=True,
-#         max_length=max_length,
+#         max_new_tokens=512,
 #         top_p=0.90,
 #         top_k=50,
-#         temperature=0.5,
+#         temperature=0.7,
 #         early_stopping=False,
 #         no_repeat_ngram_size=2,
 #         num_return_sequences=1,
 #     )
 
-#     return tokenizer.decode(sample_outputs[0].tolist())
+#     return llama_tokenizer.decode(sample_outputs[0].tolist())
 
 
 # original_output = generate_fairy_tale_original(
-#     "Write a fairy tale about a poor little boy", max_tokens=1024
+#     "Write a fairy tale about three sisters who set out to break a curse on their village",
+#     max_new_tokens=1024,
 # )
 # print("Original Model Output:")
 # print(original_output)
