@@ -5,7 +5,10 @@ outputs*/
 merged*/
 adapter*/
 grimm*/
-inkitt*/
+
+# Ignore everything in inkitt except the specified file and directory
+inkitt/*
+!inkitt/_metadata_drama.json
+
 
 .DS_Store
-
