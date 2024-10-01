@@ -11,3 +11,5 @@ accelerate
 einops
 nltk
 tabulate
+selenium
+webdriver-manager
