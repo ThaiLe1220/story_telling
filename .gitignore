@@ -9,6 +9,7 @@ grimm*/
 # Ignore everything in inkitt except the specified file and directory
 inkitt/*
 !inkitt/_metadata_drama.json
+!inkitt/_metadata_romance.json
 
 
 .DS_Store
