@@ -27,3 +27,8 @@ curl -X GET "https://www.inkitt.com/stories/drama/737654/chapters/2" \
 ```
 
 
+
+curl \
+  -H 'Content-Type: application/json' \
+  -d '{"contents":[{"parts":[{"text":"Explain how AI works"}]}]}' \
+  -X POST 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyBY3laVu5u447QZqa1g99iXVNajll7kdmI'

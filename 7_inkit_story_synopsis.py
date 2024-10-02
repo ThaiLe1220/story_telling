@@ -71,6 +71,10 @@ def get_model_response(model_name, prompt):
 
 
 def save_response_to_file(content, filename):
+    directory = os.path.dirname(filename)
+    if directory and not os.path.exists(directory):
+        os.makedirs(directory)
+
     with open(filename, "w", encoding="utf-8") as file:
         file.write(content)
 
@@ -85,7 +89,7 @@ try:
 
         # Process and copy the first 20 stories
         for index, story in enumerate(data["stories"]):
-            if index >= 1:  # Stop after copying 20 stories
+            if index >= 10:  # Stop after copying 20 stories
                 break
 
             story_id = story.get("id")
@@ -94,55 +98,48 @@ try:
             story_chapters = story.get("chapters")
             story_summary = story.get("summary").replace("\n", " ")
 
-            file_path = f"inkitt/test_merge/{story_id}.txt"
+            if story_id:
+                for i in range(story_chapters):
+                    file_path = f"inkitt/test/{story_id}/chapter_{i+1}.txt"
+                    with open(file_path, "r", encoding="utf-8") as file:
+                        full_story_text = file.read()
 
-            with open(file_path, "r", encoding="utf-8") as file:
-                full_story_text = file.read()
+                    questionToAsk = f"""
+Story Title: {story_title}, Chapter: {i+1}, Category: {story_category}
+Story Summary: {story_summary}
 
-            if full_story_text and story_id:
-                questionToAsk = f"""
-Instruction: Summarize the given story as a concise synopsis following this structure. Use the metadata for context but base the synopsis solely on the Input text.
-
-Story Metadata (for context only):
-Title: {story_title}
-Category: {story_category}
-Total Chapters: {story_chapters}
-Original Summary: {story_summary}
+Instruction: Create a concise synopsis of the given story, strictly adhering to the following structure.
 
 Synopsis Structure:
-1. Hook (1-2 sentences): Capture the essence of the story with an intriguing opening.
-2. Setting and Protagonists (2-3 sentences): Introduce the main characters and establish the time and place.
-3. Inciting Incident (1-2 sentences): Describe the catalyst event that sets the story in motion.
-4. Central Conflict (1 sentence): Clearly state the main problem or goal driving the narrative.
-5. Key Plot Points (3-4 sentences): Highlight major events and turning points in the story's progression.
-6. Climax (1-2 sentences): Describe the peak moment of tension or conflict resolution.
-7. Resolution (1-2 sentences): Explain how the story concludes and any character growth.
-8. Themes (1 sentence): Identify 2-3 central themes explored in the story.
+- Hook: Capture the essence of the story with an intriguing opening.
+- Setting and Protagonists: Introduce the main characters and establish the time and place.
+- Inciting Incident: Describe the catalyst event that sets the story in motion.
+- Central Conflict: Clearly state the main problem or goal driving the narrative.
+- Key Plot Points(focus on this): Highlight major events and turning points in the story's progression.
+- Climax: Describe the peak moment of tension or conflict resolution.
+- Resolution: Explain how the story concludes and any character growth.
+- Themes: List 2-3 central themes explored in the story.
 
-Additional Guidelines:
-- Aim for a total length of 200-250 words.
-- Present the synopsis as a cohesive narrative without section headers or numbers.
-- Use present tense and active voice throughout.
-- Maintain the story's tone (e.g., suspenseful, humorous, dramatic).
-- Include only essential character names and details.
-- For series or complex stories, focus on the core narrative arc.
+Guidelines:
+- Be concise and focused, Use Active Language, Avoid Excessive Detail
+- Total length around 200 words 
+- Only output the synopsis structure, Dont output anything else
 
 Input text:
 {full_story_text}
-                """
+                    """
+                    print(story_id, i + 1)
 
-                # print(story_id, story_title, story_category, story_summary)
-                # print(questionToAsk)
+                    # Get responses from both models
+                    OllamaResponse = get_model_response(
+                        "llama3.1:latest", questionToAsk
+                    )
 
-                # Get responses from both models
-                OllamaResponse_31 = get_model_response("llama3.1:latest", questionToAsk)
-                OllamaResponse_32 = get_model_response("llama3.2:latest", questionToAsk)
+                    # Save responses to files
+                    save_response_to_file(
+                        OllamaResponse, f"inkitt/test_syn/{story_id}/{i+1}.txt"
+                    )
 
-                # Save responses to files
-                save_response_to_file(OllamaResponse_31, "OutputOllama3.1_8b.txt")
-                save_response_to_file(OllamaResponse_32, "OutputOllama3.2_3b.txt")
-
-                print("Responses have been generated and saved to files.")
     else:
         print("No stories found in the metadata file.")
 
